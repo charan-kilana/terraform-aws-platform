@@ -1,0 +1,48 @@
+# Public route table
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name = "${var.environment}-public-rt"
+  }
+}
+
+resource "aws_route" "public_internet" {
+  route_table_id         = aws_route_table.public.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.this.id
+}
+
+resource "aws_route_table_association" "public" {
+  for_each = aws_subnet.public
+
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.public.id
+}
+
+
+# One application route table per AZ keeps each subnet on its same-AZ NAT gateway.
+resource "aws_route_table" "app" {
+  for_each = aws_subnet.app
+
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name = "${var.environment}-app-rt-${each.key}"
+  }
+}
+
+resource "aws_route" "app_internet" {
+  for_each = aws_route_table.app
+
+  route_table_id         = each.value.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.this[each.key].id
+}
+
+resource "aws_route_table_association" "app" {
+  for_each = aws_subnet.app
+
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.app[each.key].id
+}
